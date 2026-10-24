@@ -1,5 +1,10 @@
+# ==============================================================================
+# DOCKER COMPOSE - HỆ THỐNG QUẢN LÝ THƯ VIỆN (FULL STACK + HARDENING)
+# Sinh viên: DTC241200004
+# ==============================================================================
+
 services:
-  # 1. Cơ sở dữ liệu PostgreSQL
+  # 1. Cơ sở dữ liệu PostgreSQL (Cô lập hoàn toàn trong mạng nội bộ backend_net)
   postgres:
     image: postgres:15-alpine
     container_name: dtc241200004_postgres
@@ -13,6 +18,13 @@ services:
       - ./database/init.sql:/docker-entrypoint-initdb.d/init.sql:ro
     networks:
       - backend_net
+    security_opt:
+      - no-new-privileges:true
+    deploy:
+      resources:
+        limits:
+          cpus: "0.50"
+          memory: 512M
     healthcheck:
       test: ["CMD-SHELL", "pg_isready -U ${POSTGRES_USER} -d ${POSTGRES_DB}"]
       interval: 10s
@@ -36,15 +48,24 @@ services:
       postgres:
         condition: service_healthy
     networks:
+      - frontend_net
       - backend_net
+    security_opt:
+      - no-new-privileges:true
+    deploy:
+      resources:
+        limits:
+          cpus: "0.50"
+          memory: 512M
 
-  # 3. Ứng dụng Web Quản lý Thư viện (PHP-FPM)
+  # 3. Ứng dụng Web Quản lý Thư viện (Non-root PHP-FPM UID 10001)
   app:
     build:
       context: ./app
       dockerfile: Dockerfile
     container_name: dtc241200004_app
     restart: unless-stopped
+    user: "10001:10001"
     environment:
       STUDENT_ID: ${STUDENT_ID}
       DB_HOST: postgres
@@ -61,14 +82,24 @@ services:
     networks:
       - frontend_net
       - backend_net
+    security_opt:
+      - no-new-privileges:true
+    cap_drop:
+      - ALL
+    deploy:
+      resources:
+        limits:
+          cpus: "0.50"
+          memory: 256M
 
-  # 4. Nginx Reverse Proxy (HTTPS tự ký + Security Headers)
+  # 4. Nginx Reverse Proxy (Non-root UID 101 + HTTPS tự ký + Security Headers)
   nginx:
     build:
       context: ./nginx
       dockerfile: Dockerfile
     container_name: dtc241200004_nginx
     restart: unless-stopped
+    user: "101:101"
     ports:
       - "${NGINX_HTTP_PORT:-8080}:8080"
       - "${NGINX_HTTPS_PORT:-8443}:8443"
@@ -80,6 +111,15 @@ services:
     networks:
       - frontend_net
       - monitoring_net
+    security_opt:
+      - no-new-privileges:true
+    cap_drop:
+      - ALL
+    deploy:
+      resources:
+        limits:
+          cpus: "0.50"
+          memory: 256M
 
   # 5. Nginx Prometheus Exporter (Giám sát Web Server)
   nginx-exporter:
@@ -92,6 +132,10 @@ services:
       - nginx
     networks:
       - monitoring_net
+    security_opt:
+      - no-new-privileges:true
+    cap_drop:
+      - ALL
 
   # 6. Postgres Prometheus Exporter (Giám sát Database)
   postgres-exporter:
@@ -106,6 +150,10 @@ services:
     networks:
       - backend_net
       - monitoring_net
+    security_opt:
+      - no-new-privileges:true
+    cap_drop:
+      - ALL
 
   # 7. cAdvisor (Giám sát tài nguyên Docker Containers)
   cadvisor:
@@ -119,6 +167,8 @@ services:
       - /var/lib/docker/:/var/lib/docker:ro
     networks:
       - monitoring_net
+    security_opt:
+      - no-new-privileges:true
 
   # 8. Prometheus (Thu thập và lưu trữ Metrics)
   prometheus:
@@ -141,6 +191,10 @@ services:
       - cadvisor
     networks:
       - monitoring_net
+    security_opt:
+      - no-new-privileges:true
+    cap_drop:
+      - ALL
 
   # 9. Hệ thống Log tập trung Grafana Loki
   loki:
@@ -155,6 +209,10 @@ services:
       - loki_data:/loki
     networks:
       - monitoring_net
+    security_opt:
+      - no-new-privileges:true
+    cap_drop:
+      - ALL
 
   # 10. Promtail (Agent thu thập Log từ Nginx, App PHP và Containers)
   promtail:
@@ -171,6 +229,8 @@ services:
       - loki
     networks:
       - monitoring_net
+    security_opt:
+      - no-new-privileges:true
 
   # 11. Grafana (Trực quan hóa Metrics & Logs)
   grafana:
@@ -191,13 +251,18 @@ services:
       - loki
     networks:
       - monitoring_net
+    security_opt:
+      - no-new-privileges:true
+    cap_drop:
+      - ALL
 
+# Hardening: Cô lập mạng thành 3 vùng riêng biệt (Network Isolation)
 networks:
   frontend_net:
     driver: bridge
   backend_net:
     driver: bridge
-    internal: false
+    internal: true
   monitoring_net:
     driver: bridge
 
