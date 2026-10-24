@@ -1,0 +1,38 @@
+# ==============================================================================
+# CẤU HÌNH PROMETHEUS - GIÁM SÁT CONTAINER, NGINX WEB SERVER & POSTGRESQL DB
+# Hệ thống Quản lý Thư viện - Sinh viên: DTC241200004
+# ==============================================================================
+
+global:
+  scrape_interval: 15s
+  evaluation_interval: 15s
+  external_labels:
+    student_id: 'dtc241200004'
+    project: 'library_management'
+
+scrape_configs:
+  # 1. Giám sát bản thân Prometheus Server
+  - job_name: 'prometheus'
+    static_configs:
+      - targets: ['localhost:9090']
+
+  # 2. Giám sát Web Server Nginx qua nginx-prometheus-exporter
+  - job_name: 'nginx_webserver'
+    static_configs:
+      - targets: ['nginx-exporter:9113']
+        labels:
+          service: 'nginx-reverse-proxy'
+
+  # 3. Giám sát Database PostgreSQL qua postgres-exporter
+  - job_name: 'postgresql_database'
+    static_configs:
+      - targets: ['postgres-exporter:9187']
+        labels:
+          service: 'postgresql-db'
+
+  # 4. Giám sát tài nguyên toàn bộ Docker Containers qua cAdvisor
+  - job_name: 'docker_containers'
+    static_configs:
+      - targets: ['cadvisor:8080']
+        labels:
+          service: 'container-metrics'

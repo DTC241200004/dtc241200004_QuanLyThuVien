@@ -79,6 +79,87 @@ services:
       - app
     networks:
       - frontend_net
+      - monitoring_net
+
+  # 5. Nginx Prometheus Exporter (Giám sát Web Server)
+  nginx-exporter:
+    image: nginx/nginx-prometheus-exporter:1.1.0
+    container_name: dtc241200004_nginx_exporter
+    restart: unless-stopped
+    command:
+      - "-nginx.scrape-uri=http://nginx:8081/stub_status"
+    depends_on:
+      - nginx
+    networks:
+      - monitoring_net
+
+  # 6. Postgres Prometheus Exporter (Giám sát Database)
+  postgres-exporter:
+    image: prometheuscommunity/postgres-exporter:v0.15.0
+    container_name: dtc241200004_postgres_exporter
+    restart: unless-stopped
+    environment:
+      DATA_SOURCE_NAME: "postgresql://${POSTGRES_USER}:${POSTGRES_PASSWORD}@postgres:5432/${POSTGRES_DB}?sslmode=disable"
+    depends_on:
+      postgres:
+        condition: service_healthy
+    networks:
+      - backend_net
+      - monitoring_net
+
+  # 7. cAdvisor (Giám sát tài nguyên Docker Containers)
+  cadvisor:
+    image: gcr.io/cadvisor/cadvisor:v0.49.1
+    container_name: dtc241200004_cadvisor
+    restart: unless-stopped
+    volumes:
+      - /:/rootfs:ro
+      - /var/run:/var/run:ro
+      - /sys:/sys:ro
+      - /var/lib/docker/:/var/lib/docker:ro
+    networks:
+      - monitoring_net
+
+  # 8. Prometheus (Thu thập và lưu trữ Metrics)
+  prometheus:
+    image: prom/prometheus:v2.51.0
+    container_name: dtc241200004_prometheus
+    restart: unless-stopped
+    command:
+      - "--config.file=/etc/prometheus/prometheus.yml"
+      - "--storage.tsdb.path=/prometheus"
+      - "--storage.tsdb.retention.time=7d"
+      - "--web.enable-lifecycle"
+    ports:
+      - "${PROMETHEUS_PORT:-9090}:9090"
+    volumes:
+      - ./prometheus/prometheus.yml:/etc/prometheus/prometheus.yml:ro
+      - prometheus_data:/prometheus
+    depends_on:
+      - nginx-exporter
+      - postgres-exporter
+      - cadvisor
+    networks:
+      - monitoring_net
+
+  # 9. Grafana (Trực quan hóa Metrics & Logs)
+  grafana:
+    image: grafana/grafana:10.4.2
+    container_name: dtc241200004_grafana
+    restart: unless-stopped
+    environment:
+      GF_SECURITY_ADMIN_USER: ${GF_SECURITY_ADMIN_USER}
+      GF_SECURITY_ADMIN_PASSWORD: ${GF_SECURITY_ADMIN_PASSWORD}
+      GF_USERS_ALLOW_SIGN_UP: "false"
+    ports:
+      - "${GRAFANA_PORT:-3000}:3000"
+    volumes:
+      - grafana_data:/var/lib/grafana
+      - ./prometheus/grafana-datasources.yml:/etc/grafana/provisioning/datasources/datasources.yml:ro
+    depends_on:
+      - prometheus
+    networks:
+      - monitoring_net
 
 networks:
   frontend_net:
@@ -86,9 +167,13 @@ networks:
   backend_net:
     driver: bridge
     internal: false
+  monitoring_net:
+    driver: bridge
 
 volumes:
   postgres_data:
   pgadmin_data:
   app_logs:
   nginx_logs:
+  prometheus_data:
+  grafana_data:
