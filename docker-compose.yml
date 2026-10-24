@@ -142,7 +142,37 @@ services:
     networks:
       - monitoring_net
 
-  # 9. Grafana (Trực quan hóa Metrics & Logs)
+  # 9. Hệ thống Log tập trung Grafana Loki
+  loki:
+    image: grafana/loki:2.9.6
+    container_name: dtc241200004_loki
+    restart: unless-stopped
+    command: -config.file=/etc/loki/local-config.yaml
+    ports:
+      - "${LOKI_PORT:-3100}:3100"
+    volumes:
+      - ./loki/loki-config.yml:/etc/loki/local-config.yaml:ro
+      - loki_data:/loki
+    networks:
+      - monitoring_net
+
+  # 10. Promtail (Agent thu thập Log từ Nginx, App PHP và Containers)
+  promtail:
+    image: grafana/promtail:2.9.6
+    container_name: dtc241200004_promtail
+    restart: unless-stopped
+    command: -config.file=/etc/promtail/config.yml
+    volumes:
+      - ./promtail/promtail-config.yml:/etc/promtail/config.yml:ro
+      - nginx_logs:/var/log/nginx:ro
+      - app_logs:/var/log/app:ro
+      - /var/lib/docker/containers:/var/lib/docker/containers:ro
+    depends_on:
+      - loki
+    networks:
+      - monitoring_net
+
+  # 11. Grafana (Trực quan hóa Metrics & Logs)
   grafana:
     image: grafana/grafana:10.4.2
     container_name: dtc241200004_grafana
@@ -158,6 +188,7 @@ services:
       - ./prometheus/grafana-datasources.yml:/etc/grafana/provisioning/datasources/datasources.yml:ro
     depends_on:
       - prometheus
+      - loki
     networks:
       - monitoring_net
 
@@ -177,3 +208,4 @@ volumes:
   nginx_logs:
   prometheus_data:
   grafana_data:
+  loki_data:
