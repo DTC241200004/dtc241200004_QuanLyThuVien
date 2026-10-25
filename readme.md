@@ -70,11 +70,13 @@ docker compose ps
 | :--- | :--- | :--- |
 | Web Quản lý Thư viện (HTTP) | http://localhost:8080 | Giao diện có menu riêng: Tổng quan, Quản lý sách, Quản lý độc giả, Mượn / trả sách |
 | Web Quản lý Thư viện (HTTPS) | https://localhost:8443 | Chứng chỉ SSL tự ký ("CN=dtc241200004.local") |
-| pgAdmin 4 | http://localhost:5050 | Email: "dtc241200004@ictu.edu.vn"<br>Pass: "PgAdmin@2026!Dtc241200004" |
-| PostgreSQL (Từ pgAdmin) | Host: "postgres" (Port "5432") | DB: "library_db"<br>User: "lib_admin_dtc241200004"<br>Pass: "LibDb@2026!Dtc241200004" |
+| pgAdmin 4 | http://localhost:5050 | Email: xem biến `PGADMIN_DEFAULT_EMAIL` trong `.env`<br>Password: xem biến `PGADMIN_DEFAULT_PASSWORD` trong `.env` |
+| PostgreSQL (Từ pgAdmin) | Host: "postgres" (Port "5432") | DB, user và password: xem các biến `POSTGRES_DB`, `POSTGRES_USER` và `POSTGRES_PASSWORD` trong `.env` |
 | Prometheus | http://localhost:9090 | Kiểm tra "Status -> Targets" (4 targets "UP") |
-| Grafana | http://localhost:3000 | User: "admin_dtc241200004"<br>Pass: "Grafana@2026!Dtc241200004#" |
+| Grafana | http://localhost:3000 | User và password: xem các biến `GF_SECURITY_ADMIN_USER` và `GF_SECURITY_ADMIN_PASSWORD` trong `.env` |
 | Loki API | http://localhost:3100/ready | Kiểm tra trạng thái Loki |
+
+> Các thông tin đăng nhập được cấu hình trong file `.env` tại thư mục gốc dự án. Nếu chưa có file này, sao chép `.env.example` thành `.env`, thay các giá trị mẫu bằng thông tin riêng trước khi chạy hệ thống. Không chia sẻ hoặc commit file `.env`.
 
 ---
 
@@ -151,7 +153,7 @@ Promtail tự động thu thập log từ:
    - Tách biệt thành 3 mạng "frontend_net", "backend_net" ("internal: true") và "monitoring_net".
    - Cơ sở dữ liệu "postgres" chỉ nằm trong "backend_net" ("internal: true") và không mở port ra máy host, ngăn chặn hoàn toàn truy cập trực tiếp từ bên ngoài.
 3. Mật khẩu mạnh & Quản lý thông tin nhạy cảm:
-   - Toàn bộ mật khẩu ("PostgreSQL", "pgAdmin", "Grafana") có độ dài >= 16 ký tự, bao gồm chữ hoa, chữ thường, chữ số và ký tự đặc biệt.
+   - Đặt mật khẩu riêng, đủ mạnh cho PostgreSQL, pgAdmin và Grafana trong file ".env"; không dùng lại mật khẩu giữa các dịch vụ.
    - Lưu trữ trong ".env" và chặn đẩy lên Git thông qua ".gitignore" (chỉ đẩy ".env.example").
 4. Hạn chế quyền Container ("cap_drop", "no-new-privileges", "read-only" mounts, Resource Limits):
    - Thiết lập "security_opt: ["no-new-privileges:true"]" ngăn chặn leo thang đặc quyền.
