@@ -30,3 +30,4 @@ Hoặc lọc theo nhãn JSON đã được Promtail trích xuất:
 ```logql
 sum by (job) (count_over_time({student_id="dtc241200004"}[5m]))
 ```
+

@@ -22,3 +22,4 @@ COPY default.conf /etc/nginx/conf.d/default.conf
 USER 101
 
 EXPOSE 8080 8443 8081
+

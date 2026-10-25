@@ -60,3 +60,4 @@ function get_db_connection(): PDO
         throw $e;
     }
 }
+

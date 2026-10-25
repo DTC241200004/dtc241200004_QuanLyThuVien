@@ -6,31 +6,20 @@
 session_start();
 require_once __DIR__ . '/db.php';
 
-// Endpoint kiểm tra sức khỏe hệ thống (Healthcheck)
-if (isset($_GET['health'])) {
-    header('Content-Type: application/json; charset=utf-8');
-    try {
-        $pdo = get_db_connection();
-        $stmt = $pdo->query('SELECT 1');
-        echo json_encode([
-            'status'     => 'healthy',
-            'student_id' => 'dtc241200004',
-            'database'   => 'connected',
-            'timestamp'  => date('c'),
-        ]);
-    } catch (Exception $e) {
-        http_response_code(500);
-        echo json_encode([
-            'status'   => 'unhealthy',
-            'database' => 'disconnected',
-        ]);
-    }
-    exit;
-}
-
 $flashMessage = $_SESSION['flash_message'] ?? null;
 $flashType    = $_SESSION['flash_type'] ?? 'success';
 unset($_SESSION['flash_message'], $_SESSION['flash_type']);
+
+$pages = [
+    'dashboard' => 'Tổng quan',
+    'books'     => 'Quản lý sách',
+    'readers'   => 'Quản lý độc giả',
+    'borrows'   => 'Mượn / trả sách',
+];
+$page = $_GET['page'] ?? 'dashboard';
+if (!is_string($page) || !isset($pages[$page])) {
+    $page = 'dashboard';
+}
 
 function set_flash(string $msg, string $type = 'success'): void
 {
@@ -194,11 +183,6 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && $pdo !== null) {
                 $pdo->rollBack();
                 set_flash('Phiếu mượn không hợp lệ hoặc đã được trả trước đó.', 'warning');
             }
-        } elseif ($action === 'generate_sample_logs') {
-            write_app_log('INFO', 'BORROW_BOOK', 'Log mẫu INFO: Độc giả DTC241200004 mượn sách BK-001 thành công', ['student' => 'DTC241200004', 'book' => 'BK-001']);
-            write_app_log('WARN', 'OVERDUE_CHECK', 'Log mẫu WARN: Phát hiện 1 phiếu mượn quá hạn cần nhắc nhở', ['overdue_count' => 1]);
-            write_app_log('ERROR', 'AUTH_ATTEMPT', 'Log mẫu ERROR: Cảnh báo truy cập trái phép hoặc sai thông tin xác thực', ['ip' => '192.168.1.100']);
-            set_flash('Đã sinh 3 dòng log mẫu (INFO, WARN, ERROR) gửi tới Promtail / Loki để kiểm thử LogQL!');
         }
     } catch (PDOException $e) {
         if ($pdo->inTransaction()) {
@@ -211,7 +195,15 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && $pdo !== null) {
         set_flash('Lỗi thao tác dữ liệu (có thể mã sách/mã độc giả hoặc email bị trùng lặp).', 'danger');
     }
 
-    header('Location: /');
+    $redirectPages = [
+        'add_book'             => 'books',
+        'delete_book'          => 'books',
+        'add_reader'           => 'readers',
+        'delete_reader'        => 'readers',
+        'borrow_book'          => 'borrows',
+        'return_book'          => 'borrows',
+    ];
+    header('Location: /?page=' . ($redirectPages[$action] ?? 'dashboard'));
     exit;
 }
 
@@ -320,14 +312,19 @@ if ($pdo !== null) {
         <a class="navbar-brand" href="/">
             📚 QUẢN LÝ THƯ VIỆN | <span class="badge bg-light text-primary">DTC241200004</span>
         </a>
-        <div class="d-flex align-items-center gap-2">
-            <form method="POST" class="m-0">
-                <input type="hidden" name="action" value="generate_sample_logs">
-                <button type="submit" class="btn btn-sm btn-warning fw-semibold">
-                    ⚡ Tạo Log Mẫu (Test Loki)
-                </button>
-            </form>
-            <a href="/?health=1" target="_blank" class="btn btn-sm btn-outline-light">Health JSON</a>
+        <button class="navbar-toggler" type="button" data-bs-toggle="collapse" data-bs-target="#mainNavigation" aria-controls="mainNavigation" aria-expanded="false" aria-label="Mở menu">
+        <span class="navbar-toggler-icon"></span>
+        </button>
+        <div class="collapse navbar-collapse" id="mainNavigation">
+        <ul class="navbar-nav me-auto ms-lg-4">
+            <?php foreach ($pages as $pageKey => $pageLabel): ?>
+                <li class="nav-item">
+                    <a class="nav-link<?= $page === $pageKey ? ' active' : '' ?>"<?= $page === $pageKey ? ' aria-current="page"' : '' ?> href="/?page=<?= htmlspecialchars($pageKey) ?>">
+                        <?= htmlspecialchars($pageLabel) ?>
+                    </a>
+                </li>
+            <?php endforeach; ?>
+        </ul>
         </div>
     </div>
 </nav>
@@ -344,6 +341,7 @@ if ($pdo !== null) {
         </div>
     <?php endif; ?>
 
+    <?php if ($page === 'dashboard'): ?>
     <!-- Thống kê tổng quan -->
     <div class="row g-3 mb-4">
         <div class="col-md-3 col-6">
@@ -371,7 +369,20 @@ if ($pdo !== null) {
             </div>
         </div>
     </div>
+    <div class="card section-card">
+        <div class="card-body">
+            <h5 class="card-title fw-bold">Tổng quan thư viện</h5>
+            <p class="card-text text-muted mb-3">Chọn một phân hệ trên thanh menu để quản lý dữ liệu riêng.</p>
+            <div class="d-flex flex-wrap gap-2">
+                <a class="btn btn-outline-primary" href="/?page=books">📖 Quản lý sách</a>
+                <a class="btn btn-outline-primary" href="/?page=readers">👨‍🎓 Quản lý độc giả</a>
+                <a class="btn btn-outline-primary" href="/?page=borrows">🔄 Quản lý mượn / trả</a>
+            </div>
+        </div>
+    </div>
+    <?php endif; ?>
 
+    <?php if ($page === 'borrows'): ?>
     <!-- Khu vực 1: Quản lý Mượn / Trả Sách -->
     <div class="card section-card mb-4">
         <div class="card-header bg-white py-3 d-flex justify-content-between align-items-center">
@@ -482,15 +493,19 @@ if ($pdo !== null) {
             </div>
         </div>
     </div>
+    <?php endif; ?>
 
+    <?php if ($page === 'books' || $page === 'readers'): ?>
     <div class="row g-4">
         <!-- Khu vực 2: Danh mục Sách -->
-        <div class="col-lg-7">
+        <?php if ($page === 'books'): ?>
+        <div class="col-12">
             <div class="card section-card h-100">
                 <div class="card-header bg-white py-3 d-flex justify-content-between align-items-center flex-wrap gap-2">
                     <h5 class="mb-0 fw-bold">📖 Quản lý Kho Sách</h5>
                     <div class="d-flex gap-2">
                         <form method="GET" class="d-flex">
+                            <input type="hidden" name="page" value="books">
                             <input type="text" name="q" value="<?= htmlspecialchars($searchQuery) ?>" class="form-control form-control-sm me-1" placeholder="Tìm tên sách, mã...">
                             <button type="submit" class="btn btn-sm btn-outline-primary">Tìm</button>
                         </form>
@@ -566,9 +581,11 @@ if ($pdo !== null) {
                 </div>
             </div>
         </div>
+        <?php endif; ?>
 
         <!-- Khu vực 3: Danh sách Độc giả -->
-        <div class="col-lg-5">
+        <?php if ($page === 'readers'): ?>
+        <div class="col-12">
             <div class="card section-card h-100">
                 <div class="card-header bg-white py-3 d-flex justify-content-between align-items-center">
                     <h5 class="mb-0 fw-bold">👨‍🎓 Quản lý Độc Giả</h5>
@@ -634,7 +651,9 @@ if ($pdo !== null) {
                 </div>
             </div>
         </div>
+        <?php endif; ?>
     </div>
+    <?php endif; ?>
 
     <footer class="text-center text-muted small mt-4 pt-3 border-top">
         Hệ thống Quản lý Thư viện | Sinh viên thực hiện: <strong>DTC241200004</strong> |
